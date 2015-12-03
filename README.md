@@ -1,10 +1,11 @@
 # Incident-Response
 
-## Examples:
-
-### Get Names of All Services: (you can explicitly supply credentials with -Credentials)
+### Get Names of All Services: 
+#### (you can explicitly supply credentials with -Credentials)
+```powershell
 Get-AllProcesses -Computername @("192.168.1.1","DC1")
 Get-AllServices -Computername @("192.168.1.1","DC1")
+```
 
 ### Get Strings, optionally filter down to interesting items:
 Get-Content -Raw -Path c:\evil.exe | Get-Strings -Length 5 -NetworkItems
