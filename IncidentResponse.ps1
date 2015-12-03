@@ -261,13 +261,13 @@ function Get-Strings
 
             [Switch]$NetworkItems = $false,
 
-            [Switch]$FileItems,
+            [Switch]$FileItems = $false,
 
-            [Switch]$RegistryItems,
+            [Switch]$RegistryItems = $false,
 
-            [Switch]$EmailItems,
+            [Switch]$EmailItems = $false,
 
-            [Switch]$FunctionItems
+            [Switch]$FunctionItems = $false
 
         )
 
