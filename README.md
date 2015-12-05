@@ -69,7 +69,7 @@ Name                           Value
 IE10Win7                       {__EventFilter.Name="SCM Event Log Filter"} 
 
 
-PS C:\users\et0x> Get-WMIEventSubscriptions -Type Consumer -ComputerNames @("192.168.197.153","IE10Win7") -Credentialed -ShowDefinitions
+PS C:\users\et0x> Get-WMIEventSubscriptions -Type Consumer -ComputerNames @("192.168.197.153","IE10Win7") -Credentialed
 Name                           Value                                                                                                                                                          
 ----                           -----                                                                                                                                                          
 192.168.197.153                {CommandLineEventConsumer.Name="DCI200", NTEventLogEventConsumer.Name="SCM Event Log Consumer"}                                                                
