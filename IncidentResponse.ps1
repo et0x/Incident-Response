@@ -24,12 +24,30 @@ function Get-AllProcesses
         foreach ($computer in $ComputerName) {
 
             if ($Credentials) {
+                
+                $processes = Get-WmiObject -ComputerName $computer -Credential $Credentials -Class Win32_Process -Namespace 'root\cimv2' -Impersonation 3
 
-                $processes = Get-WmiObject -ComputerName $computer -Credential $Credentials -Class Win32_Process -Namespace "root\cimv2" -Impersonation 3
+                if (-not $processes)
+                {
+
+                    Write-Error "[!] Error: No access to computer '$computer'"
+
+                }
 
             } else {
 
-                $processes = Get-WmiObject -ComputerName $computer -Class Win32_Process -Namespace "root/cimv2"
+                try
+                {
+
+                    $processes = Get-WmiObject -ComputerName $computer -Class Win32_Process -Namespace 'root/cimv2'
+
+                } catch {
+
+                    Write-Error "[!] Error: No access to computer '$computer'"
+
+                    return 0
+
+                }
 
             }
 
@@ -81,11 +99,31 @@ function Get-AllServices
 
             if ($Credentials) {
 
-                $services = Get-WmiObject -ComputerName $computer -Credential $Credentials -Class Win32_Service -Namespace "root\cimv2" -Impersonation 3
+                try
+                {
+
+                    $services = Get-WmiObject -ComputerName $computer -Credential $Credentials -Class Win32_Service -Namespace 'root\cimv2' -Impersonation 3
+
+                } catch {
+
+                    return 0
+
+                }
 
             } else {
 
-                $services = Get-WmiObject -ComputerName $computer -Class Win32_Service -Namespace "root/cimv2"
+                try
+                {
+
+                    $services = Get-WmiObject -ComputerName $computer -Class Win32_Service -Namespace 'root/cimv2'
+
+                } catch {
+
+                    Write-Error "[!] Error: No access to computer '$computer'"
+
+                    return 0
+
+                }
 
             }
 
@@ -112,33 +150,6 @@ function Get-AllServices
     }
 
 }
-
-function Invoke-HashArray
-{
-
-    Param(
-
-        [System.Collections.ArrayList]$Array
-
-    )
-
-    $text = $Array -join "`r`n"
-
-    $hash = [System.BitConverter]::ToString(
-
-        (New-Object System.Security.Cryptography.MD5CryptoServiceProvider).ComputeHash(
-
-            [system.text.encoding]::UTF8.GetBytes($text)
-
-        )
-
-    )
-
-    return $hash
-
-}
-
-
 
 function Invoke-ProcessHashSweep
 {
@@ -172,8 +183,12 @@ function Invoke-ProcessHashSweep
 
         }
 
+        if ($p)
+        {
 
-        $results[$computer] = Invoke-HashArray -Array $p
+            $results[$computer] = Invoke-HashArray -Array $p
+
+        }
 
     }
 
@@ -237,8 +252,10 @@ function Invoke-ServiceHashSweep
 
         }
 
-
-        $results[$computer] = Invoke-HashArray -Array $s
+        if ($s)
+        {
+            $results[$computer] = Invoke-HashArray -Array $s
+        }
 
     }
 
@@ -458,3 +475,434 @@ function Get-Strings
 
 }
 
+function Invoke-HashString
+{
+    Param(
+
+        [CmdletBinding()]
+
+        [Parameter(Mandatory=$true)]
+
+        [String]$Data
+
+    )
+
+    $md5 = New-Object -TypeName System.Security.Cryptography.MD5CryptoServiceProvider
+
+    $enc = New-Object -TypeName System.Text.UTF8Encoding
+
+    $hash = [System.BitConverter]::ToString($md5.ComputeHash($enc.GetBytes($Data)))
+
+    return $hash
+}
+function Get-WMIEventSubscriptions
+{
+
+    Param(
+
+        [ValidateSet('All','Filter','Consumer','BindingPath')]
+
+        [String]$Type,
+
+        [Parameter(Mandatory=$true)]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed,
+
+        [System.Management.Automation.PSCredential]$ProvideCreds = $null,
+
+        [Switch]$ShowDefinitions = $false
+
+    )
+
+    if ($Credentialed)
+    {
+
+        $creds = Get-Credential
+
+    } elseif ($ProvideCreds) {
+
+        $creds = $ProvideCreds
+    
+    }
+
+    [System.Collections.Hashtable]$results = @{}
+
+    Switch ($Type)
+    {
+        'All' {
+
+                foreach ($computer in $ComputerNames)
+                {
+
+                    if ($Credentialed -or $ProvideCreds)
+                    {
+
+                        $Binding = Get-WmiObject -ComputerName $computer -Namespace 'root/subscription' -Class __FilterToConsumerBinding -Credential $creds
+
+                    } else {
+
+                        $Binding = Get-WmiObject -ComputerName $computer -Namespace 'root/subscription' -Class __FilterToConsumerBinding
+
+                    }
+
+                    if ($Binding)
+                    {
+
+                        $results[$computer] = @($Binding.__Path, $Binding.Filter, $Binding.Consumer)
+
+                        Remove-Variable Binding -Force
+
+                    }
+
+                }
+
+                return $results
+
+        }
+
+        'BindingPath' {
+
+                foreach ($computer in $ComputerNames)
+                {
+
+                    if ($Credentialed -or $ProvideCreds)
+                    {
+
+                        $Binding = Get-WmiObject -ComputerName $computer -Namespace 'root/subscription' -Class __FilterToConsumerBinding -Credential $creds
+
+                    } else {
+
+                        $Binding = Get-WmiObject -ComputerName $computer -Namespace 'root/subscription' -Class __FilterToConsumerBinding
+
+                    }
+
+                    if ($Binding)
+                    {
+
+                        $results[$computer] = @($Binding.__Path)
+
+                        Remove-Variable Binding -Force
+
+                    }
+
+                }
+
+                return $results
+
+        }
+
+        'Filter' {
+
+            foreach ($computer in $ComputerNames)
+            {
+
+                if ($Credentialed -or $ProvideCreds)
+                {
+
+                    $Binding = Get-WmiObject -ComputerName $computer -Namespace 'root/subscription' -Class __FilterToConsumerBinding -Credential $creds
+
+                } else {
+
+                    $Binding = Get-WmiObject -ComputerName $computer -Namespace 'root/subscription' -Class __FilterToConsumerBinding
+
+                }
+
+                if ($Binding)
+                {
+
+                    $results[$computer] = @($Binding.Filter)
+
+                    Remove-Variable Binding -Force
+
+                }
+
+            }
+
+            return $results
+        
+        }
+
+        'Consumer' {
+
+            foreach ($computer in $ComputerNames)
+            {
+
+                if ($Credentialed -or $ProvideCreds)
+                {
+
+                    $Binding = Get-WmiObject -ComputerName $computer -Namespace 'root/subscription' -Class __FilterToConsumerBinding -Credential $creds
+
+                } else {
+
+                    $Binding = Get-WmiObject -ComputerName $computer -Namespace 'root/subscription' -Class __FilterToConsumerBinding
+
+                }
+
+                if ($Binding)
+                {
+
+                    $results[$computer] = @($Binding.Consumer)
+
+                    Remove-Variable Binding -Force
+
+                }
+
+            }
+
+            return $results
+        
+        }
+
+    }
+
+}
+
+function Invoke-ClarifyEventSubscription
+{
+
+    Param(
+
+        [CmdletBinding()]
+
+        [Parameter(Mandatory=$true)]
+
+        [String]$ComputerName,
+
+        [Parameter(Mandatory=$true)]
+
+        [String]$BindingPath,
+
+        [Switch]$Credentialed,
+
+        [System.Management.Automation.PSCredential]$ProvideCreds = $null
+
+    )
+
+    $ConsumerProperties = @{
+
+        'CommandLineEventConsumer' = @('Name','CommandLineTemplate','ExecutablePath','WorkingDirectory');
+
+        'NTEventLogEventConsumer'  = @('Name','EventID','EventType','Category');
+
+        'ActiveScriptEventConsumer'= @('Name','ScriptingEngine','ScriptFileName','ScriptText');
+
+        'LogFileEventConsumer'     = @('Name','Filename','Text');
+
+        'SMTPEventConsumer'        = @('Name','FromLine','ToLine','ReplyToLine','CcLine','BccLine','Subject','Message','SMTPServer')
+
+    }
+
+    if ($BindingPath -match '__FilterToConsumerBinding\.Consumer=".+\.')
+    {
+
+        $consumerType = $Matches[0].split('"')[1].split('.')[0]
+
+        Remove-Variable Matches -Force
+
+    } else {
+
+        return 0
+
+    }
+
+    if ($Credentialed)
+    {
+    
+        $creds = Get-Credential
+    
+    } elseif ($ProvideCreds) {
+    
+        $creds = $ProvideCreds
+    
+    }
+
+    if ($BindingPath -match "$consumerType.Name=\\`".+\\`"")
+    {
+
+        $consumerName = $Matches[0].split('"')[1] -replace '.$'
+
+        Remove-Variable Matches -Force
+
+    } else {
+
+        return 0
+
+    }
+
+    if ($BindingPath -match '__EventFilter\.Name=\\".+\\"')
+    {
+
+        $filterName = $Matches[0].split('"')[-2] -replace '.$'
+
+        Remove-Variable Matches -Force
+
+    } else {
+
+        return 0
+
+    }
+
+    if ($credentialed -or $ProvideCreds)
+    {
+
+        $consumerResults = Get-WmiObject -Credential $creds -ComputerName $ComputerName -Namespace 'root/subscription' -Query "Select * from $consumerType where Name=`"$consumerName`"" | Select-Object -Property $ConsumerProperties[$consumerType]
+
+        $filterResults = Get-WmiObject -Credential $creds  -ComputerName $ComputerName -Namespace 'root/subscription' -Query "Select * from __EventFilter where Name=`"$filterName`"" | Select-Object -Property @('Name','Query')
+
+    } else {
+
+        $consumerResults = Get-WmiObject -ComputerName $ComputerName -Namespace 'root/subscription' -Query "Select * from $consumerType where Name=`"$consumerName`"" | Select-Object -Property $ConsumerProperties[$consumerType]
+
+        $filterResults = Get-WmiObject -ComputerName $ComputerName -Namespace 'root/subscription' -Query "Select * from __EventFilter where Name=`"$filterName`"" | Select-Object -Property @('Name','Query')
+
+    }
+
+    if ($consumerResults -and $filterResults)
+    {
+
+        return @($consumerResults, $filterResults)
+
+    } else {
+
+        return 0
+
+    }
+
+}
+
+function Invoke-EnumerateAllWMIEventSubscriptions
+{
+
+    [CmdletBinding()]
+
+    Param(
+
+        [Parameter(Mandatory=$true)]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed,
+
+        [System.Management.Automation.PSCredential]$ProvideCreds = $null
+
+    )
+
+    if ($Credentialed)
+    {
+
+        $creds = Get-Credential
+
+    } elseif ($ProvideCreds) {
+
+        $creds = $ProvideCreds
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+        if ($Credentialed -or $ProvideCreds)
+        {
+
+            $__Path = Get-WMIEventSubscriptions -ComputerNames $Computer -Type BindingPath -ProvideCreds $creds
+
+        } else {
+
+            $__Path = Get-WMIEventSubscriptions -ComputerNames $Computer -Type BindingPath
+
+        }
+
+        if ($__Path)
+        {
+
+            foreach ($binding in $__Path)
+            {
+
+                foreach ($values in $binding.values)
+                {
+                    foreach ($val in $values)
+                    {
+                        
+                        Write-Output "[+]  HOST: $computer"
+
+                        if ($Credentialed -or $ProvideCreds)
+                        {
+
+                            Invoke-ClarifyEventSubscription -ComputerName $computer -BindingPath $val -ProvideCreds $creds | Format-List
+
+                        } else {
+
+                            Invoke-ClarifyEventSubscription -ComputerName $computer -BindingPath $val | Format-List
+                    
+                        }
+                    }
+
+                }
+            
+            }
+        
+        }
+    
+    }
+
+}
+
+function Invoke-WMIHashSweep
+{
+
+    Param(
+
+        [CmdletBinding()]
+
+        [Parameter(Mandatory=$true)]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+    
+    if ($Credentialed)
+    {
+
+        $creds = Get-Credential
+
+    }
+
+    [System.Collections.Hashtable]$results = @{}
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ($Credentialed)
+        {
+            $str = ''
+
+            $bindingPath = Get-WMIEventSubscriptions -Type BindingPath -ComputerNames $computer -ProvideCreds $creds
+
+            $bindingPath.Values | % { $str += $_ }
+
+            $hash = Invoke-HashString -Data $str
+
+            $results[$computer] = $hash
+
+        } else {
+
+            $str = ''
+
+            $bindingPath = (Get-WMIEventSubscriptions -Type BindingPath -ComputerNames $computer).values -join ''
+
+            $bindingPath.Values | % { $str += $_ }
+
+            $hash = Invoke-HashString -Data $str
+
+            $results[$computer] = $hash
+
+        }
+
+    }
+
+    return $results
+
+}
