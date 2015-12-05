@@ -61,7 +61,7 @@ Name                           Value
 192.168.197.153                {\\IE10WIN72\ROOT\subscription:__FilterToConsumerBinding.Consumer="CommandLineEventConsumer.Name=\"DCI200\"",Filter="__EventFilter.Name=\"DCI200\"" \\IE10WI...
 IE10Win7                       {\\IE10WIN7\ROOT\subscription:__FilterToConsumerBinding.Consumer="NTEventLogEventConsumer.Name=\"SCM Event Log Consumer\"",Filter="__EventFilter.Name=\"SCM ...
 
-PS C:\users\et0x> Get-WMIEventSubscriptions -Type Filter -ComputerNames @("192.168.197.153","IE10Win7") -Credentialed -ShowDefinitions
+PS C:\users\et0x> Get-WMIEventSubscriptions -Type Filter -ComputerNames @("192.168.197.153","IE10Win7") -Credentialed
 
 Name                           Value                                                                                                                                                          
 ----                           -----                                                                                                                                                          
