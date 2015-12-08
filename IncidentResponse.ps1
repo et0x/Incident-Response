@@ -4,6 +4,7 @@
    https://www.github.com/et0x
    scomijo@gmail.com
    et0x@rwnin.net
+   @_et0x
 #>
 
 # From: http://data.iana.org/TLD/tlds-alpha-by-domain.txt -- 12/2/2015
