@@ -128,8 +128,8 @@ IE10Win7                       3A-57-5A-26-91-14-61-CA-3A-A3-65-B4-17-1B-C7-7C
 ###Get all processes running on a list of hosts, return the sorted number of occurrences (most occurrences to least)
 ```powershell
 # the following do the same thing:
-Get-RemoteProcessCount -ComputerNames @("192.168.197.153","192.168.197.160") -Credentialed
-Get-RemoteProcessCount -ComputerNames (Get-Content .\hosts.txt) -Credentialed
+PS C:\WINDOWS\system32> Get-RemoteProcessCount -ComputerNames @("192.168.197.153","192.168.197.160") -Credentialed
+PS C:\WINDOWS\system32> Get-RemoteProcessCount -ComputerNames (Get-Content .\hosts.txt) -Credentialed
 
 [+] Count: 22, Executable: C:\Windows\system32\svchost.exe
 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192
@@ -148,8 +148,8 @@ Get-RemoteProcessCount -ComputerNames (Get-Content .\hosts.txt) -Credentialed
 ###Get all services installed on a list of hosts, return the sorted number of occurrences (most occurrences to least)
 ```powershell
 # the following do the same thing:
-Get-RemoteServiceCount -ComputerNames @("192.168.197.153","192.168.197.160") -Credentialed
-Get-RemoteServiceCount -ComputerNames (Get-Content .\hosts.txt) -Credentialed
+PS C:\WINDOWS\system32> Get-RemoteServiceCount -ComputerNames @("192.168.197.153","192.168.197.160") -Credentialed
+PS C:\WINDOWS\system32> Get-RemoteServiceCount -ComputerNames (Get-Content .\hosts.txt) -Credentialed
 
 [+] Count: 2, Service Name: wcncsvc
 192.168.197.153, 192.168.197.160
