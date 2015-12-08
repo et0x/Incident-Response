@@ -2,6 +2,8 @@
    Author: Michael Scott
    http://www.rwnin.net
    https://www.github.com/et0x
+   scomijo@gmail.com
+   et0x@rwnin.net
 #>
 
 # From: http://data.iana.org/TLD/tlds-alpha-by-domain.txt -- 12/2/2015
