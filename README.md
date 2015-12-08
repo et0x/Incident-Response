@@ -125,4 +125,89 @@ Name                           Value
 IE10Win7                       3A-57-5A-26-91-14-61-CA-3A-A3-65-B4-17-1B-C7-7C
 ```
 
+###Get all processes running on a list of hosts, return the sorted number of occurrences (most occurrences to least)
+```powershell
+# the following do the same thing:
+Get-RemoteProcessCount -ComputerNames @("192.168.197.153","192.168.197.160") -Credentialed
+Get-RemoteProcessCount -ComputerNames (Get-Content .\hosts.txt) -Credentialed
+
+[+] Count: 22, Executable: C:\Windows\system32\svchost.exe
+192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192
+.168.197.160, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192.168.197.160
+
+
+[+] Count: 10, Executable: C:\Windows\system32\vmicsvc.exe
+192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.153, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192.168.197.160, 192.168.197.160
+
+...
+
+[+] Count: 1, Executable: C:\Users\et0x\AppData\Local\Temp\gh0st.exe
+192.168.197.160
+```
+
+###Get all services installed on a list of hosts, return the sorted number of occurrences (most occurrences to least)
+```powershell
+# the following do the same thing:
+Get-RemoteServiceCount -ComputerNames @("192.168.197.153","192.168.197.160") -Credentialed
+Get-RemoteServiceCount -ComputerNames (Get-Content .\hosts.txt) -Credentialed
+
+[+] Count: 2, Service Name: wcncsvc
+192.168.197.153, 192.168.197.160
+
+
+[+] Count: 2, Service Name: UI0Detect
+192.168.197.153, 192.168.197.160
+
+
+[+] Count: 2, Service Name: NetTcpPortSharing
+192.168.197.153, 192.168.197.160
+
+...
+
+[+] Count: 1, Service Name: MalService
+192.168.197.153
+```
+
+###Multi-threaded (quick!) active host ping-sweep
+```powershell
+PS C:\WINDOWS\system32> Get-ActiveHosts -Subnet 192.168.197 -Start 1 -End 254
+192.168.197.1
+192.168.197.153
+192.168.197.160
+WARNING: Total Live Hosts: 3
+
+PS C:\WINDOWS\system32> Get-ActiveHosts -Subnet 192.168.197 -Start 1 -End 254 > hosts.txt
+WARNING: Total Live Hosts: 3
+```
+
+###Get the Hash (MD5/SHA1/SHA256) of a single, or many files from a list (I realize in PS 4.0 There is a cmdlet for this, but I always work off 2.0)
+```powershell
+PS C:\WINDOWS\system32> Get-HashSum (Get-Content .\files.txt) -Algorithm MD5
+
+
+Name  : c:\windows\syswow64\calc.exe
+Value : 71CC09E8F88BEC2186AA6AEE4B2CDAEB
+
+Name  : c:\windows\syswow64\notepad.exe
+Value : 51805698809B88CEB8193C975C4CE5AC
+
+PS C:\WINDOWS\system32> Get-HashSum @("c:\windows\syswow64\calc.exe","c:\windows\syswow64\notepad.exe") -Algorithm SHA1
+
+
+Name  : c:\windows\syswow64\calc.exe
+Value : 9ABB92D19683E7611DCAFD3CF767360EFA32E296
+
+Name  : c:\windows\syswow64\notepad.exe
+Value : 8CFB904FE7B1B7DE5DC1B11233A5A5D1403EC6A1
+
+PS C:\WINDOWS\system32> Get-HashSum @("c:\windows\syswow64\calc.exe","c:\windows\syswow64\notepad.exe") -Algorithm SHA256
+
+
+Name  : c:\windows\syswow64\calc.exe
+Value : 6EB5251FC9850F23FAB98CE71349879E8E9C8C284736F9545958257FC739ECF3
+
+Name  : c:\windows\syswow64\notepad.exe
+Value : B66B398769FEB6554D213EC79592B84DEB81CC37C303FC5778EC92D71AF14471
+```
+
 ###More to come!

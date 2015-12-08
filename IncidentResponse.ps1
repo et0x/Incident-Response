@@ -495,6 +495,8 @@ function Invoke-HashString
 
     return $hash
 }
+
+
 function Get-WMIEventSubscriptions
 {
 
@@ -904,5 +906,270 @@ function Invoke-WMIHashSweep
     }
 
     return $results
+
+}
+
+function Get-ActiveHosts
+{
+
+    Param(
+
+        [CmdletBinding()]
+
+        [String]$Subnet,
+
+        [Int]$Start,
+
+        [Int]$End
+
+    )
+
+    for ($i = $Start; $i -le $End; $i++)
+    {
+
+        $CurrentHost = "$Subnet.$i"
+
+        $ping = Test-Connection -ComputerName $CurrentHost -Count 1 -AsJob
+
+    }
+
+    Start-Sleep 5
+
+    $totalLive = 0
+
+    foreach ($job in Get-Job)
+    {
+
+        if ($job.jobstateinfo.state -ne 'Running')
+        {
+
+            $ping = Receive-Job -Job $job
+
+            if ($ping.StatusCode -eq 0)
+            {
+
+                Write-Output $ping.ProtocolAddress
+
+                $totalLive++
+
+            }
+
+        }
+
+    }
+
+    Write-Warning "Total Live Hosts: $totalLive"
+
+}
+
+function Get-RemoteProcessCount
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed)
+    {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Class 'Win32_Process' -ComputerName $computer -Credential $creds
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Class 'Win32_Process' -ComputerName $computer
+
+            }
+
+            foreach ($proc in $d)
+            {
+
+                $p = $proc.ExecutablePath
+
+                if (-not $results[$p])
+                {
+
+                    $results[$p] = @()
+
+                    $counts[$p] = 0
+
+                }
+
+                $results[$p] += $computer
+
+                $counts[$p]++
+
+            }
+
+        }
+    
+    }
+
+    foreach ($i in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+
+        Write-Output "[+] Count: $($i.value), Executable: $($i.key)"
+
+        $results[$i.key] -join ', '
+
+        Write-Output "`n"
+
+    }
+
+    
+    $ErrorActionPreference = $errorpref
+
+    
+}
+
+function Get-RemoteServiceCount
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Class 'Win32_Service' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Class 'Win32_Service' -ComputerName $computer
+
+            }
+
+            foreach ($serv in $d)
+            {
+
+                $s = $serv.Name
+
+                if (-not $results[$s])
+                {
+
+                    $results[$s] = @()
+
+                    $counts[$s] = 0
+
+                }
+
+                $results[$s] += $computer
+
+                $counts[$s]++
+
+            }
+
+        }
+    
+    }
+
+    foreach ($i in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+
+        Write-Output "[+] Count: $($i.value), Service Name: $($i.key)"
+
+        $results[$i.key] -join ', '
+
+        Write-Output "`n"
+
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+function Get-HashSum
+{
+    Param(
+
+        [CmdletBinding()]
+
+        [String[]]$Filenames,
+
+        [ValidateSet('MD5','SHA1','SHA256')]
+
+        [String[]]$Algorithm = 'MD5'
+
+    )
+
+    [System.Collections.Hashtable]$results = @{}
+
+    foreach ($file in $Filenames)
+    {
+
+        if (-not (Test-Path $file -PathType Leaf))
+        {
+            
+            Write-Warning "File Doesn't Exist: $file"
+
+            continue
+
+        }
+
+        $hasher = [Security.Cryptography.HashAlgorithm]::Create($Algorithm)
+
+        $s = ([System.IO.StreamReader]$file).BaseStream
+
+        $hash = [System.BitConverter]::ToString($hasher.ComputeHash($s))
+
+        $results[$file] = $hash.replace('-','')
+
+        Remove-Variable @('hasher','s','hash')
+
+    }
+
+    return $results | Format-List
 
 }
