@@ -873,8 +873,8 @@ function Invoke-WMIHashSweep
         [Switch]$Credentialed
 
     )
-    
     if ($Credentialed)
+    
     {
 
         $creds = Get-Credential
@@ -1181,4 +1181,140 @@ function Get-HashSum
 
     return $results | Format-List
 
+}
+
+function Get-PSExecs
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    $cultureInfo = New-Object System.Globalization.CultureInfo('en-US')
+
+    [System.Collections.HashTable]$results = @{}
+
+    if ($Credentialed)
+    {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Query 'Select * from Win32_NtLogEvent where EventCode=7045' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Query 'Select * from Win32_NtLogEvent where EventCode=7045' -ComputerName $computer
+
+            }
+
+            foreach ($serviceInstall in $d)
+            {
+
+                $t = ([DateTime]::ParseExact($serviceInstall.TimeGenerated.split('.')[0],'yyyyMMddHHmmss',$cultureInfo))
+
+                [string]$query = "Select * from Win32_NTLogEvent WHERE (TimeGenerated >= '$($t.AddSeconds(-5).ToString('yyyyMMdd HH:mm:ss'))' and TimeGenerated <= '$($t.AddSeconds(5).ToString('yyyyMMdd HH:mm:ss'))') and (EventIdentifier=4624 or EventIdentifier=4648)"
+
+                if ($Credentialed)
+                {
+
+                    $logins = Get-WmiObject -Namespace 'root/cimv2' -Query $query -ComputerName $computer -Credential $creds
+
+                } else {
+
+                    $logins = Get-WmiObject -Namespace 'root/cimv2' -Query $query -ComputerName $computer
+
+                }
+
+                foreach ($login in $logins)
+                {
+
+                    $msg = $login.message.split([System.Environment]::NewLine)
+
+                    $results['Logon Type'] = $msg[16].split(':')[1].TrimStart()
+                    
+                    $results['Target Account'] = $msg[24].split(':')[1].TrimStart()
+
+                    $results['Target Domain'] = $msg[26].split(':')[1].TrimStart()
+                    
+                    $results['Source Acct'] = $msg[8].split(':')[1].TrimStart()
+
+                    $results['Source Domain'] = $msg[10].split(':')[1].TrimStart()
+
+                    $results['Source Hostname'] = $msg[44].split(':')[1].TrimStart()
+
+                    $results['Source IP'] = $msg[46].split(':')[1].TrimStart()
+                    
+                    Write-Output "[+] Possible PSExec Found, Logon Type: $($results['Logon Type'])"
+
+                    Write-Output "    Host:            $computer"
+
+                    Write-Output "    Time:            $t"
+
+                    Write-Output "    Source Hostname: $($results['Source Hostname'])"
+
+                    Write-Output "    Source IP:       $($results['Source IP'])"
+
+                    Write-Output "    Source Account:  $($results['Source Acct'])"
+
+                    Write-Output "    Source Domain:   $($results['Source Domain'])"
+
+                    Write-Output ''
+
+                    Write-Output "    Target Account:  $($results['Target Account'])"
+
+                    Write-Output "    Target Domain:   $($results['Target Domain'])"
+
+                    Write-Output ''
+
+                }
+
+            }
+
+        }
+    
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+    
+}
+
+function Get-TZOffset
+{
+    Param(
+        [string]$ComputerName,
+        [System.Management.Automation.PSCredential]$Credentials
+    )
+
+    $result = 0
+
+    if ($Credentials -ne $null)
+    {
+        $result = (Get-WmiObject -ComputerName $ComputerName -Class 'Win32_TimeZone' -Credential $Credentials).bias
+    } else {
+        $result = (Get-WmiObject -ComputerName $ComputerName -Class 'Win32_TimeZone').bias
+    }
+
+    return $result
 }
