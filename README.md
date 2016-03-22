@@ -209,9 +209,10 @@ Value : 6EB5251FC9850F23FAB98CE71349879E8E9C8C284736F9545958257FC739ECF3
 Name  : c:\windows\syswow64\notepad.exe
 Value : B66B398769FEB6554D213EC79592B84DEB81CC37C303FC5778EC92D71AF14471
 ```
-###Get all PSEXECs that occurred on a system or system
+###Get all PSEXECs that occurred on a system or systems (for multiple systems use -ComputerNames (Get-Content .\ips.txt) )
+####Note that certain tools (such as nessus) may cause false positives as it uses remote service installations for its tasks, therefore you may need to do some filtering.
 ```powershell
-PS C:\WINDOWS\system32> Get-PSExecs -ComputerName "10.0.1.28" -Credentialed
+PS C:\WINDOWS\system32> Get-PSExecs -ComputerNames "10.0.1.28" -Credentialed
 [+] Possible PSExec Found, Logon Type: 3
     Host:            10.0.1.28
     Time:            03/22/2016 12:47:08
