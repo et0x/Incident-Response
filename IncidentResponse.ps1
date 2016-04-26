@@ -1,10 +1,10 @@
-﻿<# 
-   Author: Michael Scott
-   http://www.rwnin.net
-   https://www.github.com/et0x
-   scomijo@gmail.com
-   et0x@rwnin.net
-   @_et0x
+<# 
+        Author: Michael Scott
+        http://www.rwnin.net
+        https://www.github.com/et0x
+        scomijo@gmail.com
+        et0x@rwnin.net
+        @_et0x
 #>
 
 # From: http://data.iana.org/TLD/tlds-alpha-by-domain.txt -- 12/2/2015
@@ -1216,6 +1216,7 @@ function Get-PSExecs
 
         if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
         {
+            Write-Output "[*] Checking Host: $computer"
             
             if ($Credentialed)
             {
@@ -1233,7 +1234,7 @@ function Get-PSExecs
 
                 $t = ([DateTime]::ParseExact($serviceInstall.TimeGenerated.split('.')[0],'yyyyMMddHHmmss',$cultureInfo))
 
-                [string]$query = "Select * from Win32_NTLogEvent WHERE (TimeGenerated >= '$($t.AddSeconds(-5).ToString('yyyyMMdd HH:mm:ss'))' and TimeGenerated <= '$($t.AddSeconds(5).ToString('yyyyMMdd HH:mm:ss'))') and (EventIdentifier=4624 or EventIdentifier=4648)"
+                [string]$query = "Select * from Win32_NTLogEvent WHERE (TimeGenerated >= '$($t.AddSeconds(-2).ToString('yyyyMMdd HH:mm:ss'))' and TimeGenerated <= '$($t.AddSeconds(2).ToString('yyyyMMdd HH:mm:ss'))') and EventIdentifier=4624"
 
                 if ($Credentialed)
                 {
@@ -1248,48 +1249,25 @@ function Get-PSExecs
 
                 foreach ($login in $logins)
                 {
-
+                    Write-output "[!]   Possible PSExec Found, Host: $computer, Time: $t"
                     $msg = $login.message.split([System.Environment]::NewLine)
-
-                    $results['Logon Type'] = $msg[16].split(':')[1].TrimStart()
-                    
-                    $results['Target Account'] = $msg[24].split(':')[1].TrimStart()
-
-                    $results['Target Domain'] = $msg[26].split(':')[1].TrimStart()
-                    
-                    $results['Source Acct'] = $msg[8].split(':')[1].TrimStart()
-
-                    $results['Source Domain'] = $msg[10].split(':')[1].TrimStart()
-
-                    $results['Source Hostname'] = $msg[44].split(':')[1].TrimStart()
-
-                    $results['Source IP'] = $msg[46].split(':')[1].TrimStart()
-                    
-                    Write-Output "[+] Possible PSExec Found, Logon Type: $($results['Logon Type'])"
-
-                    Write-Output "    Host:            $computer"
-
-                    Write-Output "    Time:            $t"
-
-                    Write-Output "    Source Hostname: $($results['Source Hostname'])"
-
-                    Write-Output "    Source IP:       $($results['Source IP'])"
-
-                    Write-Output "    Source Account:  $($results['Source Acct'])"
-
-                    Write-Output "    Source Domain:   $($results['Source Domain'])"
-
-                    Write-Output ''
-
-                    Write-Output "    Target Account:  $($results['Target Account'])"
-
-                    Write-Output "    Target Domain:   $($results['Target Domain'])"
-
-                    Write-Output ''
-
+                    $fields = @('workstation name:',
+                                'source network address:',
+                                'source port:',
+                                'account name:',
+                                'account domain:',
+                                'logon type:')
+                                
+                    foreach ($m in $msg.trim().tolower())
+                    {
+                        $fields | ForEach-Object { if ($m -match $_) { write-output "        $m" } }
+                    }
                 }
+                
 
             }
+            
+            Write-Output ''
 
         }
     
@@ -1317,4 +1295,1301 @@ function Get-TZOffset
     }
 
     return $result
+}
+
+function Get-ServiceInfo
+{
+    Param(
+        [string[]]$ComputerNames,
+        [string[]]$ServiceNames,
+        [switch]$Credentialed
+    )
+
+    if ($Credentialed)
+    {
+
+        $creds = Get-Credential
+
+    }
+
+    $ServiceQuery = $ServiceNames -join "%' or Name LIKE '%"
+    $ServiceQuery = "Select * From Win32_Service WHERE (Name LIKE '%$ServiceQuery%')"
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Query $ServiceQuery -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Query $ServiceQuery -ComputerName $computer
+
+            }
+
+            Write-Output "[+] Host: $computer"
+            foreach ($svc in $d)
+            {
+                Write-Output "    Service Name:    $($svc.Name)"
+                Write-Output "    Executable Path: $($svc.PathName)"
+                Write-Output "    Status:          $($svc.State)"
+                Write-Output ''
+            }
+        }
+    }
+}
+
+function Get-ProcessInfo
+{
+    Param(
+        [string[]]$ComputerNames,
+        [string[]]$ProcessNames,
+        [switch]$Credentialed
+    )
+
+    if ($Credentialed)
+    {
+
+        $creds = Get-Credential
+
+    }
+
+    $cultureInfo = New-Object System.Globalization.CultureInfo('en-US')
+    $ProcessQuery = $ProcessNames -join "%' or ExecutablePath LIKE '%"
+    $ProcessQuery = "Select * From Win32_Process WHERE (ExecutablePath LIKE '%$ProcessQuery%')"
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Query $ProcessQuery -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Query $ProcessQuery -ComputerName $computer
+
+            }
+
+            Write-Output "[+] Host: $computer"
+            foreach ($proc in $d)
+            {
+                $dt = [DateTime]::ParseExact($proc.CreationDate.split('.')[0],'yyyyMMddHHmmss',$cultureInfo)
+                Write-Output "    Process Name:    $($proc.Name)"
+                Write-Output "    Parent PID:      $($proc.ParentProcessId)"
+                Write-Output "    Process ID:      $($proc.ProcessId)"
+                Write-Output "    Executable Path: $($proc.ExecutablePath)"
+                Write-Output "    Commandline:     $($proc.CommandLine)"
+                Write-Output "    Creation Time:   $($dt)"
+                Write-Output "    User:            $($proc.GetOwner().User)"
+                Write-Output ''
+            }
+        }
+    }
+}
+
+function Get-ProcessInfoByPIDs
+{
+    Param(
+        [string[]]$ComputerName,
+        [string[]]$ProcessPIDs,
+        [switch]$Credentialed
+    )
+
+    if ($Credentialed)
+    {
+
+        $creds = Get-Credential
+
+    }
+
+    $cultureInfo = New-Object System.Globalization.CultureInfo('en-US')
+    $ProcessQuery = $ProcessPIDs -join ' or ProcessId='
+    $ProcessQuery = "Select * From Win32_Process WHERE (ProcessId=$ProcessQuery)"
+
+
+    if ((Test-Connection -Count 1 -ComputerName $ComputerName).StatusCode -eq 0)
+    {
+            
+        if ($Credentialed)
+        {
+
+            $d = Get-WmiObject -Namespace 'root/cimv2' -Query $ProcessQuery -ComputerName $ComputerName -Credential $creds
+
+        } else {
+
+            $d = Get-WmiObject -Namespace 'root/cimv2' -Query $ProcessQuery -ComputerName $ComputerName
+
+        }
+
+        Write-Output "[+] Host: $ComputerName"
+        foreach ($proc in $d)
+        {
+            $dt = [DateTime]::ParseExact($proc.CreationDate.split('.')[0],'yyyyMMddHHmmss',$cultureInfo)
+            $dt = $dt.ToUniversalTime()
+            Write-Output "    Process Name:    $($proc.Name)"
+            Write-Output "    Parent PID:      $($proc.ParentProcessId)"
+            Write-Output "    Process ID:      $($proc.ProcessId)"
+            Write-Output "    Executable Path: $($proc.ExecutablePath)"
+            Write-Output "    Commandline:     $($proc.CommandLine)"
+            Write-Output "    Creation Time:   $($dt)"
+            Write-Output "    User:            $($proc.GetOwner().User)"
+            Write-Output ''
+        }
+    }
+    
+}
+
+function Invoke-DecodeBase64
+{
+    Param(
+        [string]$Base64String
+    )
+    [System.Text.Encoding]::Default.GetString([System.Convert]::FromBase64String($Base64String))
+}
+
+function Invoke-DecodeGZippedBase64
+{
+    Param(
+        [string]$Base64String
+    )
+    $data = New-Object System.IO.MemoryStream(,[Convert]::FromBase64String($Base64String))
+    $data = (New-Object IO.StreamReader(New-Object System.IO.Compression.GZipStream($data, [System.IO.Compression.CompressionMode]::Decompress))).ReadToEnd()
+
+    return $data
+}
+
+function Get-RemoteDriverCount
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Class 'Win32_PnPSignedDriver' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -Class 'Win32_PnPSignedDriver' -ComputerName $computer
+
+            }
+
+            foreach ($serv in $d)
+            {
+
+                $s = $serv.DeviceName
+
+                if (-not $results[$s])
+                {
+
+                    $results[$s] = @()
+
+                    $counts[$s] = 0
+
+                }
+
+                $results[$s] += $computer
+
+                $counts[$s]++
+
+            }
+
+        }
+    
+    }
+
+    foreach ($i in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+
+        Write-Output "[+] Count: $($i.value), Service Name: $($i.key)"
+
+        $results[$i.key] -join ', '
+
+        Write-Output "`n"
+
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+function Invoke-PowershellSweep
+{
+    Param(
+        [string[]]$ComputerNames,
+        [switch]$Credentialed
+    )
+
+    $cultureInfo = New-Object System.Globalization.CultureInfo('en-US')
+    $query = "Select * from Win32_Process where (ExecutablePath like '%powershell%' and CommandLine like '%exec%') and CommandLine like '%bypass%'"
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Query $query -ComputerName $computer -Credential $creds
+            
+            } else {
+            
+                $d = Get-WmiObject -Query $query -ComputerName $computer
+            
+            }
+
+            if ($d.length -ne 0)
+            {
+                Write-Output "[+] Host: $computer"
+                foreach ($proc in $d)
+                {
+                    $dt = [DateTime]::ParseExact($proc.CreationDate.split('.')[0],'yyyyMMddHHmmss',$cultureInfo)
+                    $dt = $dt.ToUniversalTime()
+                    Write-Output "    Process Name:    $($proc.Name)"
+                    Write-Output "    Parent PID:      $($proc.ParentProcessId)"
+                    Write-Output "    Process ID:      $($proc.ProcessId)"
+                    Write-Output "    Executable Path: $($proc.PathName)"
+                    Write-Output "    Commandline:     $($proc.CommandLine)"
+                    Write-Output "    Creation Time:   $($dt)"
+                    Write-Output ''
+                }
+            } else {
+                Write-Output "[-] No Findings for Host: $computer"
+            }
+        }
+    }
+}
+
+function Get-RemoteAVState
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/securitycenter2' -query 'Select * from AntiVirusProduct' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/securitycenter2' -query 'Select * from AntiVirusProduct' -ComputerName $computer
+
+            }
+
+            foreach ($serv in $d)
+            {
+
+                $s = $serv.productState
+
+                if (-not $results[$s])
+                {
+
+                    $results[$s] = @()
+
+                    $counts[$s] = 0
+
+                }
+
+                $results[$s] += $computer
+
+                $counts[$s]++
+
+            }
+
+        }
+    
+    }
+
+    foreach ($i in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+
+        Write-Output "[+] Count: $($i.value), AV State: $($i.key)"
+
+        $results[$i.key] -join ', '
+
+        Write-Output "`n"
+
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+
+function Get-RemoteAtJobs
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_ScheduledJob' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_ScheduledJob' -ComputerName $computer
+
+            }
+
+            foreach ($serv in $d)
+            {
+
+                $s = $serv.Name
+
+                if (-not $results[$s])
+                {
+
+                    $results[$s] = @()
+
+                    $counts[$s] = 0
+
+                }
+
+                $results[$s] += $computer
+
+                $counts[$s]++
+
+            }
+
+        }
+    
+    }
+
+    foreach ($i in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+
+        Write-Output "[+] Count: $($i.value), At Job Name: $($i.key)"
+
+        $results[$i.key] -join ', '
+
+        Write-Output "`n"
+
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+
+function Get-RemoteShares
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_Share' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_Share' -ComputerName $computer
+
+            }
+
+            foreach ($serv in $d)
+            {
+
+                $s = $serv.Path
+
+                if (-not $results[$s])
+                {
+
+                    $results[$s] = @()
+
+                    $counts[$s] = 0
+
+                }
+
+                $results[$s] += $computer
+
+                $counts[$s]++
+
+            }
+
+        }
+    
+    }
+
+    foreach ($i in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+
+        Write-Output "[+] Count: $($i.value), Shares: $($i.key)"
+
+        $results[$i.key] -join ', '
+
+        Write-Output "`n"
+
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+function Get-RemoteUsers
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_UserAccount' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_UserAccount' -ComputerName $computer
+
+            }
+
+            foreach ($serv in $d)
+            {
+
+                $s = $serv.Name
+
+                if (-not $results[$s])
+                {
+
+                    $results[$s] = @()
+
+                    $counts[$s] = 0
+
+                }
+
+                $results[$s] += $computer
+
+                $counts[$s]++
+
+            }
+
+        }
+    
+    }
+
+    foreach ($i in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+
+        Write-Output "[+] Count: $($i.value), User: $($i.key)"
+
+        $results[$i.key] -join ', '
+
+        Write-Output "`n"
+
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+function Get-RemoteStartupCommand
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_StartupCommand' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_StartupCommand' -ComputerName $computer
+
+            }
+
+            foreach ($serv in $d)
+            {
+
+                $s = $serv.Command
+
+                if (-not $results[$s])
+                {
+
+                    $results[$s] = @()
+
+                    $counts[$s] = 0
+
+                }
+
+                $results[$s] += $computer
+
+                $counts[$s]++
+
+            }
+
+        }
+    
+    }
+
+    foreach ($i in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+
+        Write-Output "[+] Count: $($i.value), Startup Command: $($i.key)"
+
+        $results[$i.key] -join ', '
+
+        Write-Output "`n"
+
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+
+function Get-RemoteHostNames
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_ComputerSystem' -ComputerName $computer -Credential $creds
+
+            } else {
+
+                $d = Get-WmiObject -Namespace 'root/cimv2' -query 'Select * from Win32_ComputerSystem' -ComputerName $computer
+
+            }
+
+            foreach ($serv in $d)
+            {
+
+                $s = $serv.Name
+
+                Write-Output "[+] IP: $computer, Hostname: $s"
+
+            }
+
+        }
+    
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+
+function Get-RemoteRegistryPersistence
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+    
+    [System.Collections.Hashtable]$urls = @{}
+    
+    $HKLM = [UInt32]2147483650
+    $HKCU = [UInt32]2147483649
+    $RunKey = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+                $res = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name EnumValues -ArgumentList @($HKLM, $RunKey) -ComputerName $computer -Credential $creds
+                foreach ($instance in $res)
+                {
+                    foreach ($key in $instance.sNames)
+                    {
+                        $val = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetStringValue -ArgumentList @($HKLM, $RunKey, $key) -ComputerName $computer -Credential $creds
+                        
+                        if ([string]::IsNullOrEmpty($urls[$computer]))
+                        {
+                            $urls[$computer] = $val.sValue
+                        } else {
+                            $urls[$computer] += ",$($val.sValue)"
+                        }
+                    }
+                }
+
+            } else {
+
+                $res = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name EnumValues -ArgumentList @($HKLM, $RunKey) -ComputerName $computer
+                foreach ($instance in $res)
+                {
+                    foreach ($key in $instance.sNames)
+                    {
+                        $val = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetStringValue -ArgumentList @($HKLM, $RunKey, $key) -ComputerName $computer
+                        
+                        if ([string]::IsNullOrEmpty($urls[$computer]))
+                        {
+                            $urls[$computer] = $val.sValue
+                        } else {
+                            $urls[$computer] += ",$($val.sValue)"
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+
+    foreach ($computer in $urls.GetEnumerator())
+    {
+        $computername = $computer.key
+        $urlsVisited = $urls[$computername].split(',')
+        foreach ($url in $urlsVisited)
+        {
+            if (-not ($results.ContainsKey($url)))
+            {
+                $results[$url] = $computername
+            } else {
+                $results[$url] += ", $computername"
+            }
+        }
+    }
+    
+    foreach ($dataPair in $results.GetEnumerator())
+    {
+        $counts[$dataPair.Key] = $dataPair.value.split(',').length
+    }
+    
+    foreach ($dataPair in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+        $url = $dataPair.key
+        $computers = $results[$url]
+        $instanceCount = $computers.length
+        Write-Output "[+] Count: $($dataPair.value), Persistence: '$url'"
+        Write-Output "    $computers"
+        Write-Output ''
+    }
+    
+    $ErrorActionPreference = $errorpref
+
+}
+
+function Get-RemoteTypedURLs
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+    
+    [System.Collections.Hashtable]$urls = @{}
+    
+    $HKLM = [UInt32] 2147483650
+    $HKCU = [UInt32] 2147483649
+    $UrlsKey = 'Software\Microsoft\Internet Explorer\TypedURLs'
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+                $res = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name EnumValues -ArgumentList @($HKCU, $UrlsKey) -ComputerName $computer -Credential $creds
+                foreach ($instance in $res)
+                {
+                    foreach ($key in $instance.sNames)
+                    {
+                        $val = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetStringValue -ArgumentList @($HKCU, $UrlsKey, $key) -ComputerName $computer -Credential $creds
+                        
+                        if ([string]::IsNullOrEmpty($urls[$computer]))
+                        {
+                            $urls[$computer] = $val.sValue
+                        } else {
+                            $urls[$computer] += ",$($val.sValue)"
+                        }
+                    }
+                }
+
+            } else {
+
+                $res = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name EnumValues -ArgumentList @($HKCU, $UrlsKey) -ComputerName $computer
+                foreach ($instance in $res)
+                {
+                    foreach ($key in $instance.sNames)
+                    {
+                        $val = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetStringValue -ArgumentList @($HKCU, $UrlsKey, $key) -ComputerName $computer
+                        
+                        if ([string]::IsNullOrEmpty($urls[$computer]))
+                        {
+                            $urls[$computer] = $val.sValue
+                        } else {
+                            $urls[$computer] += ",$($val.sValue)"
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+    
+    foreach ($computer in $urls.GetEnumerator())
+    {
+        $computername = $computer.key
+        $urlsVisited = $urls[$computername].split(',')
+        foreach ($url in $urlsVisited)
+        {
+            if (-not ($results.ContainsKey($url)))
+            {
+                $results[$url] = $computername
+            } else {
+                $results[$url] += ", $computername"
+            }
+        }
+    }
+    
+    foreach ($dataPair in $results.GetEnumerator())
+    {
+        $counts[$dataPair.Key] = $dataPair.value.split(',').length
+    }
+    
+    foreach ($dataPair in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+        $url = $dataPair.key
+        $computers = $results[$url]
+        $instanceCount = $computers.length
+        Write-Output "[+] Count: $($dataPair.value), URL: '$url'"
+        Write-Output "    $computers"
+        Write-Output ''
+    }
+
+    $ErrorActionPreference = $errorpref
+
+}
+
+function Get-RemoteMappedDrives
+{
+
+    Param(
+
+        [CMDletBinding()]
+
+        [String[]]$ComputerNames,
+
+        [Switch]$Credentialed
+
+    )
+
+    $errorpref = $ErrorActionPreference
+
+    $ErrorActionPreference = 'SilentlyContinue'
+
+    [System.Collections.Hashtable]$results = @{}
+
+    [System.Collections.Hashtable]$counts = @{}
+    
+    [System.Collections.Hashtable]$urls = @{}
+    
+    $HKLM = [UInt32] 2147483650
+    $HKCU = [UInt32] 2147483649
+    $UrlsKey = 'software\Microsoft\Windows\CurrentVersion\explorer\Map Network Drive'
+
+    if ($Credentialed) {
+
+        $creds = Get-Credential
+
+    }
+
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+                $res = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name EnumValues -ArgumentList @($HKCU, $UrlsKey) -ComputerName $computer -Credential $creds
+                foreach ($instance in $res)
+                {
+                    foreach ($key in $instance.sNames)
+                    {
+                        $val = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetStringValue -ArgumentList @($HKCU, $UrlsKey, $key) -ComputerName $computer -Credential $creds
+                        
+                        if ([string]::IsNullOrEmpty($urls[$computer]))
+                        {
+                            $urls[$computer] = $val.sValue
+                        } else {
+                            $urls[$computer] += ",$($val.sValue)"
+                        }
+                    }
+                }
+
+            } else {
+
+                $res = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name EnumValues -ArgumentList @($HKCU, $UrlsKey) -ComputerName $computer
+                foreach ($instance in $res)
+                {
+                    foreach ($key in $instance.sNames)
+                    {
+                        $val = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetStringValue -ArgumentList @($HKCU, $UrlsKey, $key) -ComputerName $computer
+                        
+                        if ([string]::IsNullOrEmpty($urls[$computer]))
+                        {
+                            $urls[$computer] = $val.sValue
+                        } else {
+                            $urls[$computer] += ",$($val.sValue)"
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+    
+    foreach ($computer in $urls.GetEnumerator())
+    {
+        $computername = $computer.key
+        $urlsVisited = $urls[$computername].split(',')
+        foreach ($url in $urlsVisited)
+        {
+            if (-not ($results.ContainsKey($url)))
+            {
+                $results[$url] = $computername
+            } else {
+                $results[$url] += ", $computername"
+            }
+        }
+    }
+    
+    foreach ($dataPair in $results.GetEnumerator())
+    {
+        $counts[$dataPair.Key] = $dataPair.value.split(',').length
+    }
+    
+    foreach ($dataPair in $counts.GetEnumerator() | Sort-Object Value -Descending)
+    {
+        $url = $dataPair.key
+        $computers = $results[$url]
+        $instanceCount = $computers.length
+        Write-Output "[+] Count: $($dataPair.value), Mapped Drive: '$url'"
+        Write-Output "    $computers"
+        Write-Output ''
+    }
+
+    $ErrorActionPreference = $errorpref
+
+}
+
+
+
+function Set-RegistryScriptValue
+{
+    [CmdletBinding()]
+    Param(
+        [String]$ComputerName,
+        [String]$Value,
+        [System.Management.Automation.PSCredential]$Creds = $null,
+        
+        [ValidateSet('IN', 'OUT')]
+        [Parameter(Mandatory=$true)]
+        [String]$Type = 'IN'
+    )
+    
+    $HKCU = [UInt32] 2147483649
+    $ScriptKey = 'SOFTWARE\Microsoft\Windows\CurrentVersion\IRScripts'
+    $ValueNameIn = 'SCRIPT_IN'
+    $ValueNameOut = 'SCRIPT_OUT'
+    $Value = ConvertTo-Base64 -Data $Value
+    
+    if (-not ($Creds -eq $null))
+    {
+        $created = (Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name CreateKey -ArgumentList @($HKCU, $ScriptKey) -Credential $Creds -ComputerName $ComputerName).ReturnValue
+        
+        if ($created -eq 0)
+        {
+            switch ($Type.ToLower())
+            {
+                'in' { $set = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name SetExpandedStringValue -ArgumentList @($HKCU, $ScriptKey, $Value, $ValueNameIn) -Credential $Creds -ComputerName $ComputerName }
+                'out' { $set = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name SetExpandedStringValue -ArgumentList @($HKCU, $ScriptKey, $Value, $ValueNameOut) -Credential $Creds -ComputerName $ComputerName }
+            }
+        }
+    }
+    
+    switch ($set.ReturnValue)
+    {
+        0       { $true }
+        default { $false }
+    }
+    
+}
+
+function Get-RegistryScriptValue
+{
+    [CmdletBinding()]
+    Param(
+        [String]$ComputerName,
+        [System.Management.Automation.PSCredential]$Creds = $null,
+        
+        [ValidateSet('IN', 'OUT')]
+        [Parameter(Mandatory=$true)]
+        [String]$Type = 'IN'
+    )
+    
+    $HKCU = [UInt32] 2147483649
+    $ScriptKey = 'SOFTWARE\Microsoft\Windows\CurrentVersion\IRScripts'
+    $ValueNameIn = 'SCRIPT_IN'
+    $ValueNameOut = 'SCRIPT_OUT'
+    
+    if (-not ($Creds -eq $null))
+    {
+        switch ($Type.ToLower())
+        {
+            'in' { $ScriptDefinition = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetExpandedStringValue -ArgumentList @($HKCU, $ScriptKey, $ValueNameIn) -ComputerName $ComputerName -Credential $Creds }
+            'out' { $ScriptDefinition = Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetExpandedStringValue -ArgumentList @($HKCU, $ScriptKey, $ValueNameOut) -ComputerName $ComputerName -Credential $Creds }
+        }
+        $results = ConvertFrom-Base64 -Data ($ScriptDefinition.sValue)
+        $results
+    }
+}
+
+function ConvertTo-Base64
+{
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [String]$Data
+    )
+    [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($Data))
+}
+
+function ConvertFrom-Base64
+{
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [String]$Data
+    )
+    [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($Data))
+}
+
+function Invoke-RemoteFileSearch
+{
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [String[]]$ComputerNames,
+        
+        [Parameter(Mandatory=$true)]
+        [String]$FileName,
+        
+        [switch]$Credentialed = $false
+    )
+    
+    $name = $FileName.split('.')[0]
+    $ext = $FileName.split('.')[1]
+    
+    if ($Credentialed)
+    {
+        $creds = Get-Credential
+    }
+    
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $files = Get-WmiObject -Query "Select * from CIM_DataFile where (FileName='$name' and Extension='$ext')" -ComputerName $computer -Credential $creds
+
+            } else {
+                
+                $files = Get-WmiObject -Query "Select * from CIM_DataFile where (FileName='$name' and Extension='$ext')" -ComputerName $computer
+                
+            }
+        }
+        Write-Output "[+] Host: $computer"
+        foreach ($file in $files)
+        {
+            Write-Output "  $($file.Name)"
+        }
+    }
+}
+
+function Invoke-ExecuteRegistryScript
+{
+    Param(
+        [String]$ComputerName,
+        [System.Management.Automation.PSCredential]$Creds = $null
+    )
+
+    if ($Creds -ne $null)
+    {
+        $executionScript = @"
+`$
+`$HKCU = [UInt32] 2147483649
+`$ScriptKey = 'SOFTWARE\Microsoft\Windows\CurrentVersion\IRScripts'
+`$ValueNameIn = 'SCRIPT_IN'
+`$ScriptDefinition = (Invoke-WmiMethod -Namespace root/default -Class StdRegProv -Name GetExpandedStringValue -ArgumentList @(`$HKCU, `$ScriptKey, `$ValueNameIn)).sValue
+`$ScriptText = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String(`$ScriptDefinition))
+`$ScriptText > 'C:\users\dev\desktop\output.txt'
+Invoke-Expression (`$ScriptText)
+"@
+        $encodedScript = ConvertTo-Base64 -Data $executionScript
+        $command = "powershell.exe -NOPr -Windo HIDDEN -eNCo '$encodedScript'"
+        $results = Invoke-WmiMethod -Namespace root/cimv2 -Class Win32_Process -Name Create -ArgumentList @("powershell.exe -NOPr -Windo HIDDEN -eNCo $encodedScript") -ComputerName $ComputerName -Credential $Creds
+    }
+    
+    switch ($results.ReturnValue)
+    {
+        0       { $true }
+        default { $false }
+    }
 }
