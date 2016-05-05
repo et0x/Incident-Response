@@ -2593,3 +2593,62 @@ Invoke-Expression (`$ScriptText)
         default { $false }
     }
 }
+
+function Invoke-RemoteEventSearch
+{
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$true)]
+        [string[]]$ComputerNames,
+        
+        [Parameter(Mandatory=$true)]
+        [int[]]$EventIDs,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$LogFile,
+        
+        [switch]$Credentialed=$false,
+        
+        [string]$MessageFilter
+    )
+    [System.Collections.ArrayList]$parameters = @()
+    foreach ($ec in $EventIDs.GetEnumerator())
+    {
+        $parameters.Add("EventCode=$ec") | Out-Null
+    }
+    $q = 'Select * from Win32_NTLogEvent where'
+    $c = "($($parameters -join ' or ')"
+    $l = "(Logfile='$LogFile' and $c)"
+    
+    if ($MessageFilter)
+    {
+        $finalQuery = "$q $l and Message like '%$MessageFilter%')"
+    } else {
+        $finalQuery = "$q $l)"
+    }
+    Write-Warning "Query: $finalQuery"
+    if ($Credentialed)
+    {
+        $creds = Get-Credential
+    }
+    
+    foreach ($computer in $ComputerNames)
+    {
+
+        if ((Test-Connection -Count 1 -ComputerName $computer).StatusCode -eq 0)
+        {
+            
+            if ($Credentialed)
+            {
+
+                $events = Get-WmiObject -Namespace 'root/cimv2' -Query $finalQuery -ComputerName $computer -Credential $creds
+
+            } else {
+                
+                $events = Get-WmiObject -Namespace 'root/cimv2' -Query $finalQuery -ComputerName $computer
+                
+            }
+        }
+        $events
+    }
+}
