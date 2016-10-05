@@ -2652,3 +2652,60 @@ function Invoke-RemoteEventSearch
         $events
     }
 }
+
+function Get-PrefetchFiles
+{
+  [CmdletBinding()]
+  Param(
+    [Parameter(Mandatory=$true)]
+    [string[]]$ComputerNames,
+    [switch]$Credentialed=$false
+  )
+  
+  $query = "SELECT * FROM CIM_DataFile WHERE Extension='pf' AND Path='\\windows\\prefetch\\'"
+  $results = New-Object System.Collections.ArrayList
+  
+  if ($Credentialed){
+    $creds = Get-Credential
+  }
+  
+  foreach ($computer in $ComputerNames)
+  {
+    
+    if ((Test-Connection $computer -Count 1).StatusCode -eq 0) {
+    
+      switch ($Credentialed)
+      {
+        $true {
+          Get-WmiObject -Namespace 'root/cimv2' -Query $query -Credential $creds | % {
+            $prefetchObject = New-Object psobject
+            $pfFile = $_
+            $prefetchObject | Select-Object @{N='Name';E={
+                                              [IO.Path]::GetFileName($pfFile.Name)
+                                            }},
+                                            @{N='Computer';E={$computer}} | % {
+                                              $results.Add($_) | Out-Null
+                                            }
+          }
+        }
+        
+        default {
+          Get-WmiObject -Namespace 'root/cimv2' -Query $query | % {
+            $prefetchObject = New-Object psobject
+            $pfFile = $_
+            $prefetchObject | Select-Object @{N='Name';E={
+                                              [IO.Path]::GetFileName($pfFile.Name)
+                                            }},
+                                            @{N='Computer';E={$computer}} | % {
+                                              $results.Add($_) | Out-Null
+                                            }
+          }
+        }
+      }
+    }
+  }
+  
+  $results | Group-Object Name | Sort-Object Count -Descending
+}
+
+
